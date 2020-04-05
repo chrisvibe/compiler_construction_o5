@@ -3,13 +3,29 @@ intout: .string "%ld "
 strout: .string "%s "
 errout: .string "Wrong number of arguments"
 STR0: .string "Hello, world!"
+.section .data
+_hello:
+	pushq %rbp
+	movq %rsp, %rbp
+	movq $STR0, %rsi
+	movq $strout, %rdi
+	call printf
+	movq $'\n', %rdi
+	call putchar
+	movq $9, %rsi
+	movq $intout, %rdi
+	call printf
+	movq $'\n', %rdi
+	call putchar
+	movq $0, %rax
+	call exit
 .globl main
 .section .text
 main:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $1, %rdi
-	cmpq	$0,%rdi
+	cmpq $0,%rdi
 	jne ABORT
 	cmpq $0, %rdi
 	jz SKIP_ARGS
@@ -28,7 +44,7 @@ PARSE_ARGV:
 	subq $8, %rsi
 	loop PARSE_ARGV
 SKIP_ARGS:
-	call	_hello
+	call _hello
 	jmp END
 ABORT:
 	movq $errout, %rdi
@@ -36,14 +52,3 @@ ABORT:
 END:
 	movq %rax, %rdi
 	call exit
-_hello:
-	pushq %rbp
-	movq %rsp, %rbp
-	movq $STR0, %rsi
-	movq $strout, %rdi
-	call printf
-	movq $'\n', %rdi
-	call putchar
-	movq $0, %rax
-	leave
-	ret
