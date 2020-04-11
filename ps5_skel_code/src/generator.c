@@ -1,12 +1,18 @@
+    /* puts ( "errgen: .string \"GENERIC ERROR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\"" ); */
+                /* puts ( "\tmovq $errgen, %rdi" ); */
+                /* puts ( "\tcall puts" ); */
+
 #include "vslc.h"
 
 #define MIN(a,b) (((a)<(b)) ? (a):(b))
 
 static void generate_stringtable ( void );
 static void generate_main ( symbol_t *first );
-void generate_program_dummy ( void );
 void generate_program ( void );
-static void generate_function ( symbol_t *symbol );
+static void generate_function ( symbol_t *node );
+static void hello_world ( symbol_t *symbol );
+void print_node(node_t* node);
+void node_tree_to_assembly( node_t* node );
 
 static const char *record[6] = {
     "%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"
@@ -20,9 +26,10 @@ generate_stringtable ( void )
      * error msg. from main
      */ 
     puts ( ".section .rodata" );
-    puts ( "intout: .string \"\%ld \"" );
-    puts ( "strout: .string \"\%s \"" );
+    puts ( "intout: .string \"\%ld\"" );
+    puts ( "strout: .string \"\%s\"" );
     puts ( "errout: .string \"Wrong number of arguments\"" );
+    puts ( "errprint: .string \"Cant print this symbol\"" );
 
     /* TODO:  handle the strings from the program */
 
@@ -30,24 +37,6 @@ generate_stringtable ( void )
     for(int i = 0; i < stringc; i++) {
         char* str = string_list[i];
         printf( "STR%i: .string %s\n", i, str);
-    }
-
-    /* add globals */
-    puts ( ".section .data" ); // mutable data
-    size_t n_globals = tlhash_size(global_names);
-    symbol_t* global_list[n_globals];
-    tlhash_values(global_names, (void **)&global_list);
-    for(int i = 0; i < n_globals; i++) {
-        symbol_t* sym = global_list[i];
-        switch (sym->type) {
-            case SYM_GLOBAL_VAR:    
-                printf( "_%s: .zero 8\n", sym->name);
-                /* symbol_t *value = NULL; */
-                /* tlhash_lookup(scopes[0], sym->name, strlen(sym->name), (void **)&value ); */
-            case SYM_FUNCTION:
-                generate_function(sym);
-                break;
-        }
     }
 }
 
@@ -62,7 +51,7 @@ generate_main ( symbol_t *first )
     puts ( "\tmovq %rsp, %rbp" );
 
     puts ( "\tsubq $1, %rdi" );
-    printf ( "\tcmpq $%zu,%%rdi\n", first->nparms );
+    printf ( "\tcmpq $%zu, %%rdi\n", first->nparms );
     puts ( "\tjne ABORT" );
     puts ( "\tcmpq $0, %rdi" );
     puts ( "\tjz SKIP_ARGS" );
@@ -99,21 +88,29 @@ generate_main ( symbol_t *first )
     puts ( "END:" );
     puts ( "\tmovq %rax, %rdi" );
     puts ( "\tcall exit" );
+
+    /* add global: variables (placeholders), functions */
+    size_t n_globals = tlhash_size(global_names);
+    if (n_globals)
+        puts ( ".section .data" ); // mutable data
+    symbol_t* global_list[n_globals];
+    tlhash_values(global_names, (void **)&global_list);
+    for(int i = 0; i < n_globals; i++) {
+        symbol_t* sym = global_list[i];
+        switch (sym->type) {
+            case SYM_GLOBAL_VAR:    
+                printf( "_%s: .zero 8\n", sym->name);
+                break;
+            case SYM_FUNCTION:    
+                generate_function(sym);
+                break;
+            default:
+                break;
+        }
+    }
+
 }
 
-
-void
-generate_program_dummy ( void )
-{
-    generate_stringtable();
-
-    /* Put some dummy stuff to keep the skeleton from crashing */
-    puts ( ".globl main" );
-    puts ( ".section .text" );
-    puts ( "main:" );
-    puts ( "\tmovq $0, %rax" );
-    puts ( "\tcall exit" );
-}
 
 void
 generate_program ( void )
@@ -133,8 +130,127 @@ generate_program ( void )
 /*  Return to shell */
 }
     
+static void generate_function ( symbol_t* sym ) {
+    // make function label
+    printf( "_%s:\n", sym->name);
+
+    // push run-time vars to stack
+    puts( "\tpushq %rbp" );
+    puts( "\tmovq %rsp, %rbp" );
+    
+    // local mutable data
+    /* puts ( ".section .data" ); */
+
+    // generate vsl code from node tree
+    node_tree_to_assembly(sym->node);
+
+    // exit
+    puts ( "\tcall exit" );
+}
+
+void node_tree_to_assembly( node_t* node ) {
+    for (int i = 0; i < node->n_children; i++) {
+        node_t* child = node->children[i];
+        switch(child->type) {
+            /* case PROGRAM: */
+            /*     break; */
+            /* case GLOBAL_LIST: */
+            /*     break; */
+            /* case GLOBAL: */
+            /*     break; */
+            /* case STATEMENT_LIST: */
+            /*     break; */
+            /* case PRINT_LIST: */
+            /*     break; */
+            /* case EXPRESSION_LIST: */
+            /*     break; */
+            /* case VARIABLE_LIST: */
+            /*     break; */
+            /* case ARGUMENT_LIST: */
+            /*     break; */
+            /* case PARAMETER_LIST: */
+            /*     break; */
+            /* case DECLARATION_LIST: */
+                /* break; */
+            case FUNCTION: // nested function
+                generate_function(child->entry);
+                break;
+            /* case STATEMENT: */
+            /*     break; */
+            /* case BLOCK: */
+            /*     break; */
+            /* case ASSIGNMENT_STATEMENT: */
+            /*     break; */
+            case RETURN_STATEMENT:
+                puts( "\tmovq $0, %rax" ); // return 0
+                break;
+            case PRINT_STATEMENT:
+                print_node(child);
+                break;
+            /* case NULL_STATEMENT: */
+            /*     break; */
+            /* case IF_STATEMENT: */
+            /*     break; */
+            /* case WHILE_STATEMENT: */
+            /*     break; */
+            /* case EXPRESSION: */
+            /*     break; */
+            /* case RELATION: */
+            /*     break; */
+            /* case DECLARATION: */
+            /*     break; */
+            /* case PRINT_ITEM: */
+            /*     break; */
+            case IDENTIFIER_DATA:
+                /* printf( "_%s: .zero 8\n", child->entry->name); */
+                break;
+            /* case NUMBER_DATA: */
+            /*     break; */
+            /* case STRING_DATA: */
+            /*     break; */
+            default:
+                if (child->n_children)
+                    node_tree_to_assembly( child );
+                break;
+        }
+    }
+}
+
+
+void print_node(node_t* node) {
+    for (int i = 0; i < node->n_children; i++) {
+        node_t* child = node->children[i];
+
+        switch(child->type) {
+            case STRING_DATA:
+                // print a string 
+                puts( "\tmovq $strout, %rdi" );
+                printf( "\tmovq $STR%zu, %%rsi\n", *((size_t *)child->data) );
+                puts( "\tcall printf" );
+                break;
+            case IDENTIFIER_DATA:
+                // print an int 
+                puts( "\tmovq $intout, %rdi" );
+                /* symbol_t *value = NULL; */
+                /* tlhash_lookup(scopes[0], sym->name, strlen(sym->name), (void **)&value ); */
+                /* printf( "\tmovq $%i, %%rsi\n", value); */
+                puts( "\tcall printf" );
+                break;
+            default:
+                // error msg: symbol not printable 
+                puts ( "\tmovq $errprint, %rdi" );
+                puts ( "\tcall puts" );
+                break;
+        }
+        // print newline
+        puts( "\tmovq $'\\n', %rdi" );
+        puts( "\tcall putchar" );
+    }
+}
+
+
 static void
-generate_function ( symbol_t *symbol )
+hello_world ( symbol_t *symbol ) // for hello.vsl
 {
     // make function label
     printf( "_%s:\n", symbol->name);
@@ -143,8 +259,8 @@ generate_function ( symbol_t *symbol )
     puts( "\tmovq %rsp, %rbp" );
 
     // print a string 
-    puts( "\tmovq $STR0, %rsi" );
     puts( "\tmovq $strout, %rdi" );
+    puts( "\tmovq $STR0, %rsi" );
     puts( "\tcall printf" );
 
     // print newline
@@ -152,8 +268,8 @@ generate_function ( symbol_t *symbol )
     puts( "\tcall putchar" );
 
     // print an int 
-    puts( "\tmovq $9, %rsi" );
     puts( "\tmovq $intout, %rdi" );
+    puts( "\tmovq $9, %rsi" );
     puts( "\tcall printf" );
 
     // print newline
