@@ -9,10 +9,11 @@
 static void generate_stringtable ( void );
 static void generate_main ( symbol_t *first );
 void generate_program ( void );
-static void generate_function ( symbol_t *node );
+static void generate_function ( node_t* node );
 static void hello_world ( symbol_t *symbol );
 void print_node(node_t* node);
 void node_tree_to_assembly( node_t* node );
+void handle_global_list();
 
 static const char *record[6] = {
     "%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"
@@ -89,26 +90,6 @@ generate_main ( symbol_t *first )
     puts ( "\tmovq %rax, %rdi" );
     puts ( "\tcall exit" );
 
-    /* add global: variables (placeholders), functions */
-    size_t n_globals = tlhash_size(global_names);
-    if (n_globals)
-        puts ( ".section .data" ); // mutable data
-    symbol_t* global_list[n_globals];
-    tlhash_values(global_names, (void **)&global_list);
-    for(int i = 0; i < n_globals; i++) {
-        symbol_t* sym = global_list[i];
-        switch (sym->type) {
-            case SYM_GLOBAL_VAR:    
-                printf( "_%s: .zero 8\n", sym->name);
-                break;
-            case SYM_FUNCTION:    
-                generate_function(sym);
-                break;
-            default:
-                break;
-        }
-    }
-
 }
 
 
@@ -122,17 +103,14 @@ generate_program ( void )
 /*  If there are some translate them from text to numbers */
 /*  Put them in the right places for an ordinary call */
 /*  Call the 1st function defined in the VSL source program */
-    size_t n_globals = tlhash_size(global_names);
-    symbol_t* global_list[n_globals];
-    tlhash_values(global_names, (void **)&global_list);
-    generate_main(global_list[0]);
+    node_tree_to_assembly(root);
 /*  Take the return value from that and return it to the calling shell */
 /*  Return to shell */
 }
     
-static void generate_function ( symbol_t* sym ) {
+static void generate_function ( node_t* node ) {
     // make function label
-    printf( "_%s:\n", sym->name);
+    printf( "_%s:\n", (char*)node->children[0]->data);
 
     // push run-time vars to stack
     puts( "\tpushq %rbp" );
@@ -142,76 +120,95 @@ static void generate_function ( symbol_t* sym ) {
     /* puts ( ".section .data" ); */
 
     // generate vsl code from node tree
-    node_tree_to_assembly(sym->node);
+    node_tree_to_assembly(node);
 
     // exit
     puts ( "\tcall exit" );
 }
 
+void handle_global_list() {
+    size_t n_globals = tlhash_size(global_names);
+    symbol_t* global_list[n_globals];
+    tlhash_values(global_names, (void **)&global_list);
+    generate_main(global_list[0]);
+
+    if (n_globals)
+        puts ( ".section .data" ); // mutable data
+    for(int i = 0; i < n_globals; i++) {
+        symbol_t* sym = global_list[i];
+        if (sym->type == SYM_GLOBAL_VAR) {
+            printf( "_%s: .zero 8\n", sym->name);
+        }
+    }
+}
+
 void node_tree_to_assembly( node_t* node ) {
     for (int i = 0; i < node->n_children; i++) {
         node_t* child = node->children[i];
-        switch(child->type) {
-            /* case PROGRAM: */
-            /*     break; */
-            /* case GLOBAL_LIST: */
-            /*     break; */
-            /* case GLOBAL: */
-            /*     break; */
-            /* case STATEMENT_LIST: */
-            /*     break; */
-            /* case PRINT_LIST: */
-            /*     break; */
-            /* case EXPRESSION_LIST: */
-            /*     break; */
-            /* case VARIABLE_LIST: */
-            /*     break; */
-            /* case ARGUMENT_LIST: */
-            /*     break; */
-            /* case PARAMETER_LIST: */
-            /*     break; */
-            /* case DECLARATION_LIST: */
-                /* break; */
-            case FUNCTION: // nested function
-                generate_function(child->entry);
-                break;
-            /* case STATEMENT: */
-            /*     break; */
-            /* case BLOCK: */
-            /*     break; */
-            /* case ASSIGNMENT_STATEMENT: */
-            /*     break; */
-            case RETURN_STATEMENT:
-                puts( "\tmovq $0, %rax" ); // return 0
-                break;
-            case PRINT_STATEMENT:
-                print_node(child);
-                break;
-            /* case NULL_STATEMENT: */
-            /*     break; */
-            /* case IF_STATEMENT: */
-            /*     break; */
-            /* case WHILE_STATEMENT: */
-            /*     break; */
-            /* case EXPRESSION: */
-            /*     break; */
-            /* case RELATION: */
-            /*     break; */
-            /* case DECLARATION: */
-            /*     break; */
-            /* case PRINT_ITEM: */
-            /*     break; */
-            case IDENTIFIER_DATA:
-                /* printf( "_%s: .zero 8\n", child->entry->name); */
-                break;
-            /* case NUMBER_DATA: */
-            /*     break; */
-            /* case STRING_DATA: */
-            /*     break; */
-            default:
-                if (child->n_children)
+        if (child) {
+            switch(child->type) {
+                /* case PROGRAM: */
+                /*     break; */
+                case GLOBAL_LIST: // add global variables (placeholders)
+                    handle_global_list();
+                    node_tree_to_assembly(child);
+                    break;
+                /* case GLOBAL: */
+                /*     break; */
+                /* case STATEMENT_LIST: */
+                /*     break; */
+                /* case PRINT_LIST: */
+                /*     break; */
+                /* case EXPRESSION_LIST: */
+                /*     break; */
+                /* case VARIABLE_LIST: */
+                /*     break; */
+                /* case ARGUMENT_LIST: */
+                /*     break; */
+                /* case PARAMETER_LIST: */
+                /*     break; */
+                /* case DECLARATION_LIST: */
+                    /* break; */
+                case FUNCTION: // nested function
+                    generate_function(child);
+                    break;
+                /* case STATEMENT: */
+                /*     break; */
+                /* case BLOCK: */
+                /*     break; */
+                /* case ASSIGNMENT_STATEMENT: */
+                /*     break; */
+                case RETURN_STATEMENT:
+                    puts( "\tmovq $0, %rax" ); // return 0
+                    break;
+                case PRINT_STATEMENT:
+                    print_node(child);
+                    break;
+                /* case NULL_STATEMENT: */
+                /*     break; */
+                /* case IF_STATEMENT: */
+                /*     break; */
+                /* case WHILE_STATEMENT: */
+                /*     break; */
+                /* case EXPRESSION: */
+                /*     break; */
+                /* case RELATION: */
+                /*     break; */
+                /* case DECLARATION: */
+                /*     break; */
+                /* case PRINT_ITEM: */
+                /*     break; */
+                /* case IDENTIFIER_DATA: */
+                    /* printf( "_%s: .zero 8\n", child->entry->name); */
+                    /* break; */
+                /* case NUMBER_DATA: */
+                /*     break; */
+                /* case STRING_DATA: */
+                /*     break; */
+                default:
                     node_tree_to_assembly( child );
-                break;
+                    break;
+            }
         }
     }
 }
