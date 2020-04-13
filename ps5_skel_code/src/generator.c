@@ -1,10 +1,15 @@
     /* puts ( "errgen: .string \"GENERIC ERROR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\"" ); */
+
                 /* puts ( "\tmovq $errgen, %rdi" ); */
                 /* puts ( "\tcall puts" ); */
+
+        /* symbol_t *value = NULL; */
+        /* tlhash_lookup(child->entry->locals, child->entry->name, strlen(child->entry->name), (void **)&value ); */
 
 #include "vslc.h"
 
 #define MIN(a,b) (((a)<(b)) ? (a):(b))
+#define return_rec "%rax"
 
 static void generate_stringtable ( void );
 static void generate_main ( symbol_t *first );
@@ -130,16 +135,18 @@ void handle_global_list() {
     size_t n_globals = tlhash_size(global_names);
     symbol_t* global_list[n_globals];
     tlhash_values(global_names, (void **)&global_list);
-    generate_main(global_list[0]);
+    symbol_t* first = NULL;
 
-    if (n_globals)
-        puts ( ".section .data" ); // mutable data
+    puts ( ".section .data" ); // mutable data
     for(int i = 0; i < n_globals; i++) {
         symbol_t* sym = global_list[i];
         if (sym->type == SYM_GLOBAL_VAR) {
             printf( "_%s: .zero 8\n", sym->name);
+        } else if (sym->type == SYM_FUNCTION && !first) {
+            first = sym;
         }
     }
+    generate_main(first);
 }
 
 void node_tree_to_assembly( node_t* node ) {
@@ -176,15 +183,13 @@ void node_tree_to_assembly( node_t* node ) {
                 /*     break; */
                 /* case BLOCK: */
                 /*     break; */
-                /* case ASSIGNMENT_STATEMENT: */
-                /*     symbol_t* sym = child->entry */
-                /*     symbol_t *value = NULL; */
-                /*     tlhash_insert(scopes[0], sym->name, strlen(sym->name), (void **)&value ); */
-                /*     printf( "_%s: .zero 8\n", sym->name, value); */
-                /*     printf( "movq _%s %%rax\n", sym->name); */
-                /*     break; */
+                case ASSIGNMENT_STATEMENT:
+                    /* printf( "_%s: .zero 8\n", sym->name, value); */
+                    /* printf( "movq _%s %%rax\n", sym->name); */
+                    printf("\tmovq $%i, _%s\n", *(int*)child->children[1]->data, child->children[0]->entry->name);
+                    break;
                 case RETURN_STATEMENT:
-                    puts( "\tmovq $0, %rax" ); // return 0
+                    printf( "\tmovq $0, %s\n", return_rec); // return 0
                     break;
                 case PRINT_STATEMENT:
                     print_node(child);
@@ -218,28 +223,22 @@ void node_tree_to_assembly( node_t* node ) {
     }
 }
 
-
 void print_node(node_t* node) {
     for (int i = 0; i < node->n_children; i++) {
         node_t* child = node->children[i];
 
         switch(child->type) {
-            case STRING_DATA:
-                // print a string 
+            case STRING_DATA: // print a string 
                 printf( "\tmovq $strout, %s\n", record[0]);
                 printf( "\tmovq $STR%zu, %s\n", *((size_t *)child->data), record[1]);
                 puts( "\tcall printf" );
                 break;
-            case IDENTIFIER_DATA:
-                // print an int 
+            case IDENTIFIER_DATA: // print an int 
                 printf( "\tmovq $intout, %s\n", record[0]);
-                symbol_t *value = NULL;
-                tlhash_lookup(child->entry->locals, child->entry->name, strlen(child->entry->name), (void **)&value );
-                printf( "\tmovq $%i, %s\n", value, record[1]);
+                printf("\tmovq _%s, %s\n", child->entry->name, record[1]);
                 puts( "\tcall printf" );
                 break;
-            default:
-                // error msg: symbol not printable 
+            default: // error msg: symbol not printable 
                 printf ( "\tmovq $errprint, %s\n", record[0]);
                 puts ( "\tcall puts" );
                 break;

@@ -5,6 +5,8 @@ errout: .string "Wrong number of arguments"
 errprint: .string "Cant print this symbol"
 STR0: .string "Hello, world!"
 STR1: .string "Goodbye, world!"
+.section .data
+_x: .zero 8
 .globl main
 .section .text
 main:
@@ -38,7 +40,6 @@ ABORT:
 END:
 	movq %rax, %rdi
 	call exit
-.section .data
 _hello:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -49,6 +50,12 @@ _hello:
 	call putchar
 	movq $strout, %rdi
 	movq $STR1, %rsi
+	call printf
+	movq $'\n', %rdi
+	call putchar
+	movq $9, _x
+	movq $intout, %rdi
+	movq _x, %rsi
 	call printf
 	movq $'\n', %rdi
 	call putchar
