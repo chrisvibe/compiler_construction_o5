@@ -9,5 +9,10 @@
       STRING_DATA("Hello, world!")
      PRINT_STATEMENT
       STRING_DATA("Goodbye, world!")
+     ASSIGNMENT_STATEMENT
+      IDENTIFIER_DATA(x)
+      NUMBER_DATA(9)
+     PRINT_STATEMENT
+      IDENTIFIER_DATA(x)
      RETURN_STATEMENT
       NUMBER_DATA(0)

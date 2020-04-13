@@ -177,6 +177,11 @@ void node_tree_to_assembly( node_t* node ) {
                 /* case BLOCK: */
                 /*     break; */
                 /* case ASSIGNMENT_STATEMENT: */
+                /*     symbol_t* sym = child->entry */
+                /*     symbol_t *value = NULL; */
+                /*     tlhash_insert(scopes[0], sym->name, strlen(sym->name), (void **)&value ); */
+                /*     printf( "_%s: .zero 8\n", sym->name, value); */
+                /*     printf( "movq _%s %%rax\n", sym->name); */
                 /*     break; */
                 case RETURN_STATEMENT:
                     puts( "\tmovq $0, %rax" ); // return 0
@@ -221,26 +226,26 @@ void print_node(node_t* node) {
         switch(child->type) {
             case STRING_DATA:
                 // print a string 
-                puts( "\tmovq $strout, %rdi" );
-                printf( "\tmovq $STR%zu, %%rsi\n", *((size_t *)child->data) );
+                printf( "\tmovq $strout, %s\n", record[0]);
+                printf( "\tmovq $STR%zu, %s\n", *((size_t *)child->data), record[1]);
                 puts( "\tcall printf" );
                 break;
             case IDENTIFIER_DATA:
                 // print an int 
-                puts( "\tmovq $intout, %rdi" );
-                /* symbol_t *value = NULL; */
-                /* tlhash_lookup(scopes[0], sym->name, strlen(sym->name), (void **)&value ); */
-                /* printf( "\tmovq $%i, %%rsi\n", value); */
+                printf( "\tmovq $intout, %s\n", record[0]);
+                symbol_t *value = NULL;
+                tlhash_lookup(child->entry->locals, child->entry->name, strlen(child->entry->name), (void **)&value );
+                printf( "\tmovq $%i, %s\n", value, record[1]);
                 puts( "\tcall printf" );
                 break;
             default:
                 // error msg: symbol not printable 
-                puts ( "\tmovq $errprint, %rdi" );
+                printf ( "\tmovq $errprint, %s\n", record[0]);
                 puts ( "\tcall puts" );
                 break;
         }
         // print newline
-        puts( "\tmovq $'\\n', %rdi" );
+        printf( "\tmovq $'\\n', %s\n", record[0]);
         puts( "\tcall putchar" );
     }
 }
