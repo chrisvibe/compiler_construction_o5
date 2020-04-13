@@ -6,7 +6,6 @@ errprint: .string "Cant print this symbol"
 STR0: .string "Hello, world!"
 STR1: .string "Goodbye, world!"
 .section .data
-_x: .zero 8
 .globl main
 .section .text
 main:
@@ -53,9 +52,10 @@ _hello:
 	call printf
 	movq $'\n', %rdi
 	call putchar
-	movq $9, _x
+	movq $8, 1(%rbp)
+	movq $0, %rax
 	movq $intout, %rdi
-	movq _x, %rsi
+	movq 1(%rbp), %rsi
 	call printf
 	movq $'\n', %rdi
 	call putchar
