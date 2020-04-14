@@ -185,23 +185,11 @@ void node_to_assembly( node_t* node ) {
                 tree_to_assembly(node);
                 break;
             case RETURN_STATEMENT:
-                /* printf( "\tmovq $"); */
-                /* node_to_assembly(node->children[0]); */
-                /* printf(", %s\n", return_rec); */ 
-                printf( "\tmovq $0, %s\n", return_rec); // return 0
+                printf( "\tmovq $");
+                node_to_assembly(node->children[0]);
+                printf(", %s\n", return_rec); 
                 break;
             case ASSIGNMENT_STATEMENT:
-                /* if (node->entry) { */
-                /*     switch (node->entry->type) { */
-                /*         case SYM_GLOBAL_VAR: */
-                /*             printf("\tmovq $%i, _%s\n", *(int*)node->children[1]->data, node->children[0]->entry->name); */
-                /*             break; */
-                /*         case SYM_LOCAL_VAR: */
-                /*             printf("\tmovq $%i, %li(%%rbp)", *(int*)node->children[1]->data, (8*node->entry->seq)); */
-                /*             break; */
-                /*         case SYM_PARAMETER: */
-                /*             break; */
-                    /* } */ 
                 printf("\tmovq $");
                 node_to_assembly(node->children[1]);
                 printf(", ");

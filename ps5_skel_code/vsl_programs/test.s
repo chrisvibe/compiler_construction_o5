@@ -59,5 +59,5 @@ _hello:
 	call printf
 	movq $'\n', %rdi
 	call putchar
-	movq $0, %rax
+	movq $1, %rax
 	call exit
