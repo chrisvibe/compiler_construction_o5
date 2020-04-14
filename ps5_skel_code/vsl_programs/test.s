@@ -3,6 +3,7 @@ intout: .string "%ld"
 strout: .string "%s"
 errout: .string "Wrong number of arguments"
 errprint: .string "Cant print this symbol"
+errgen: .string "GENERIC ERROR!!!"
 STR0: .string "Hello, world!"
 STR1: .string "Goodbye, world!"
 .section .data
@@ -52,10 +53,9 @@ _hello:
 	call printf
 	movq $'\n', %rdi
 	call putchar
-	movq $8, 1(%rbp)
-	movq $0, %rax
+	movq $8, 0(%rbp)
 	movq $intout, %rdi
-	movq 1(%rbp), %rsi
+	movq 0(%rbp), %rsi
 	call printf
 	movq $'\n', %rdi
 	call putchar
