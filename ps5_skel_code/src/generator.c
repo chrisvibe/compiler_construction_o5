@@ -2,24 +2,20 @@
             /* printf("\tmovq $errgen, %s\n", record[0]); */
             /* puts("\tcall puts"); */
 
-        /* symbol_t *value = NULL; */
-        /* tlhash_lookup(child->entry->locals, child->entry->name, strlen(child->entry->name), (void **)&value ); */
-
 #include "vslc.h"
 
 #define MIN(a,b) (((a)<(b)) ? (a):(b))
 #define return_rec "%rax"
 
+static void hello_world ( symbol_t *symbol );
 static void generate_stringtable ( void );
 static void generate_main ( symbol_t *first );
 void generate_program ( void );
 static void generate_function ( node_t* node );
-static void hello_world ( symbol_t *symbol );
-void handle_print_statement(node_t* print_statement);
-void print_helper(node_t* node);
 void node_to_assembly( node_t* node );
 void tree_to_assembly(node_t* node);
 void handle_global_list();
+void handle_print_statement(node_t* print_statement);
 
 static const char *record[6] = {
     "%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"
@@ -158,55 +154,67 @@ void node_to_assembly( node_t* node ) {
                 handle_global_list();
                 tree_to_assembly(node);
                 break;
-            /* case GLOBAL: */
-            /*     break; */
+            case GLOBAL:
+                tree_to_assembly(node);
+                break;
             case STATEMENT_LIST:
                 tree_to_assembly(node);
                 break;
             case PRINT_LIST:
                 tree_to_assembly(node);
                 break;
-            /* case EXPRESSION_LIST: */
-            /*     break; */
-            /* case VARIABLE_LIST: */
-            /*     break; */
-            /* case ARGUMENT_LIST: */
-            /*     break; */
-            /* case PARAMETER_LIST: */
-            /*     break; */
-            /* case DECLARATION_LIST: */
-                /* break; */
-            case FUNCTION: // nested function
+            case EXPRESSION_LIST:
+                tree_to_assembly(node);
+                break;
+            case VARIABLE_LIST:
+                tree_to_assembly(node);
+                break;
+            case ARGUMENT_LIST:
+                tree_to_assembly(node);
+                break;
+            case PARAMETER_LIST:
+                tree_to_assembly(node);
+                break;
+            case DECLARATION_LIST:
+                tree_to_assembly(node);
+                break;
+            case FUNCTION:
                 generate_function(node);
                 break;
-            /* case STATEMENT: */
-            /*     break; */
+            case STATEMENT:
+                tree_to_assembly(node);
+                break;
             case BLOCK:
                 tree_to_assembly(node);
                 break;
             case RETURN_STATEMENT:
-                printf( "\tmovq $");
                 node_to_assembly(node->children[0]);
-                printf(", %s\n", return_rec); 
                 break;
-            case ASSIGNMENT_STATEMENT:
-                printf("\tmovq $");
-                node_to_assembly(node->children[1]);
-                printf(", ");
-                node_to_assembly(node->children[0]);
-                printf("\n");
+            case ASSIGNMENT_STATEMENT: ;
+                // identifier always first child of assignment_statement
+                symbol_t* identifier = node->children[0]->entry;
+                switch (identifier->type) {
+                    case SYM_LOCAL_VAR:
+                        node_to_assembly(node->children[1]); // resolve expression
+                        printf("\tmovq %s, %li(%%rbp)\n", return_rec, (8*identifier->seq));
+                        break;
+                    case SYM_GLOBAL_VAR:
+                        node_to_assembly(node->children[1]); // resolve expression
+                        printf("\tmovq %s, _%s\n", return_rec, identifier->name);
+                        break;
+                }
                 break;
             case PRINT_STATEMENT:
                 handle_print_statement(node);
                 break;
-            /* case NULL_STATEMENT: */
-            /*     break; */
-            /* case IF_STATEMENT: */
-            /*     break; */
-            /* case WHILE_STATEMENT: */
-            /*     break; */
-            /* case EXPRESSION: */
-            /*     break; */
+            case NULL_STATEMENT:
+                break;
+            case IF_STATEMENT:
+                break;
+            case WHILE_STATEMENT:
+                break;
+            case EXPRESSION:
+                break;
             case RELATION:
                 if (node->n_children == 2) { // relation
                     switch (*((char*)node->data)){
@@ -219,25 +227,25 @@ void node_to_assembly( node_t* node ) {
                     }
                 }
                 break;
-            /* case DECLARATION: */
-            /*     break; */
+            case DECLARATION:
+                break;
             case PRINT_ITEM:
                 handle_print_statement(node);
                 break;
             case NUMBER_DATA:
-                printf("%zu", *((size_t *)node->data));
+                printf("\tmovq $%zu, %s\n", *((size_t *)node->data), return_rec);
                 break;
             case STRING_DATA:
-                printf("$STR%zu", *((size_t *)node->data));
+                printf("\tmovq $STR%zu, %s\n", *((size_t *)node->data), return_rec);
                 break;
             case IDENTIFIER_DATA:
                 if (node->entry) {
                     switch (node->entry->type) {
                         case SYM_GLOBAL_VAR:
-                            printf("_%s", node->entry->name);
+                            printf("\tmovq _%s, %s\n", node->entry->name, return_rec);
                             break;
                         case SYM_LOCAL_VAR:
-                            printf("%li(%%rbp)", (8*node->entry->seq));
+                            printf("\tmovq %li(%%rbp), %s\n", (8*node->entry->seq), return_rec);
                             break;
                         case SYM_PARAMETER:
                             break;
@@ -259,22 +267,20 @@ void tree_to_assembly(node_t* node) {
 void handle_print_statement(node_t* print_statement) {
     for (int i = 0; i < print_statement->n_children; i++) {
         node_t* print_item = print_statement->children[i];
+        node_to_assembly(print_item);  // print_item should now reside in rax
+        printf("\tmovq %s, %s\n", return_rec, record[1]);
         switch(print_item->type) {
             case STRING_DATA: // print a string 
                 printf("\tmovq $strout, %s\n", record[0]);
-                print_helper(print_item);
                 break;
             case NUMBER_DATA: // print an int 
                 printf( "\tmovq $intout, %s\n", record[0]);
-                print_helper(print_item);
                 break;
             case IDENTIFIER_DATA: // print an int 
                 printf( "\tmovq $intout, %s\n", record[0]);
-                print_helper(print_item);
                 break;
             case EXPRESSION: // print an int 
                 printf( "\tmovq $intout, %s\n", record[0]);
-                print_helper(print_item);
                 break;
             default:
                 // print newline
@@ -286,19 +292,13 @@ void handle_print_statement(node_t* print_statement) {
                 puts( "\tcall printf" );
                 break;
         }
+        puts( "\tcall printf" );
         // print newline
         printf( "\tmovq $'\\n', %s\n", record[0]);
         puts( "\tcall putchar" );
     }
 }
 
-void print_helper(node_t* print_item) {
-    // set-up parameter for printf
-    printf("\tmovq ");
-    node_to_assembly(print_item);
-    printf(", %s\n", record[1]);
-    puts( "\tcall printf" );
-}
 
 static void
 hello_world ( symbol_t *symbol ) // for hello.vsl

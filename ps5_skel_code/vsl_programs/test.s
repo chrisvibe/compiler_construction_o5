@@ -43,19 +43,23 @@ END:
 _hello:
 	pushq %rbp
 	movq %rsp, %rbp
+	movq $STR0, %rax
+	movq %rax, %rsi
 	movq $strout, %rdi
-	movq $STR0, %rsi
 	call printf
 	movq $'\n', %rdi
 	call putchar
+	movq $STR1, %rax
+	movq %rax, %rsi
 	movq $strout, %rdi
-	movq $STR1, %rsi
 	call printf
 	movq $'\n', %rdi
 	call putchar
-	movq $8, 0(%rbp)
+	movq $8, %rax
+	movq %rax, 0(%rbp)
+	movq 0(%rbp), %rax
+	movq %rax, %rsi
 	movq $intout, %rdi
-	movq 0(%rbp), %rsi
 	call printf
 	movq $'\n', %rdi
 	call putchar
