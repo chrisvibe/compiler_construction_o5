@@ -7,6 +7,7 @@ errgen: .string "GENERIC ERROR!!!"
 STR0: .string "Hello, world!"
 STR1: .string "Goodbye, world!"
 .section .data
+_x: .zero 8
 .globl main
 .section .text
 main:
@@ -40,6 +41,7 @@ ABORT:
 END:
 	movq %rax, %rdi
 	call exit
+.section .text
 _hello:
 	pushq %rbp
 	movq %rsp, %rbp
@@ -65,3 +67,5 @@ _hello:
 	call putchar
 	movq $1, %rax
 	call exit
+	popq %rbp
+	movq %rsp, %rbp

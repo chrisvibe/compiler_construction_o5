@@ -100,30 +100,28 @@ void
 generate_program ( void )
 {
     generate_stringtable();
-
-/* At runtime this has to be done: */
-/*  Find the count of arguments */
-/*  If there are some translate them from text to numbers */
-/*  Put them in the right places for an ordinary call */
-/*  Call the 1st function defined in the VSL source program */
     node_to_assembly(root);
-/*  Take the return value from that and return it to the calling shell */
-/*  Return to shell */
 }
     
 static void generate_function ( node_t* node ) {
-    // make function label
-    printf( "_%s:\n", (char*)node->children[0]->data);
 
-    // push run-time vars to stack
-    puts( "\tpushq %rbp" );
-    puts( "\tmovq %rsp, %rbp" );
+    // make function label
+    puts ( ".section .text" );
+    printf( "_%s:\n", (char*)node->children[0]->data);
+    
+    // push run time variables to stack
+    puts ( "\tpushq %rbp" );
+    puts ( "\tmovq %rsp, %rbp" );
     
     // generate vsl code from node tree
     tree_to_assembly(node);
 
     // exit
     puts ( "\tcall exit" );
+
+    // restore run time variables?????
+    puts( "\tpopq %rbp" );
+    puts( "\tmovq %rsp, %rbp" );
 }
 
 void handle_global_list() {
@@ -214,16 +212,24 @@ void node_to_assembly( node_t* node ) {
             case WHILE_STATEMENT:
                 break;
             case EXPRESSION:
-                break;
-            case RELATION:
-                if (node->n_children == 2) { // relation
+                if (node->n_children == 2 && node->data) {
                     switch (*((char*)node->data)){
                         case '+':
-                            printf("addq, ");
                             node_to_assembly(node->children[0]); // arg1
-                            printf(", ");
+                            printf("\tmovq %s, %s\n", return_rec, record[0]);
                             node_to_assembly(node->children[1]); // arg2
-                            printf("\n");
+                            printf("\taddq %s, %s, %s\n", record[0], return_rec, return_rec);
+                            break;
+                    }
+                } else {
+                    tree_to_assembly(node);
+                }
+                break;
+            case RELATION:
+                if (node->n_children == 2) {
+                    switch (*((char*)node->data)){
+                        case '<':
+                            break;
                     }
                 }
                 break;
@@ -249,9 +255,58 @@ void node_to_assembly( node_t* node ) {
                             break;
                         case SYM_PARAMETER:
                             break;
+                        case SYM_FUNCTION: // TODO parameters
+    /* // experiment for agruments */
+    /* symbol_t* first = node->entry; */
+    puts ( "\tpushq %rbp" );
+    puts ( "\tmovq %rsp, %rbp" );
+
+    /* puts ( "\tsubq $1, %rdi" ); */
+    /* printf ( "\tcmpq $%zu, %%rdi\n", first->nparms ); */
+    /* puts ( "\tjne ABORT" ); */
+    /* puts ( "\tcmpq $0, %rdi" ); */
+    /* puts ( "\tjz SKIP_ARGS" ); */
+
+    /* puts ( "\tmovq %rdi, %rcx" ); */
+    /* printf ( "\taddq $%zu, %%rsi\n", 8*first->nparms ); */
+    /* puts ( "PARSE_ARGV:" ); */
+    /* puts ( "\tpushq %rcx" ); */
+    /* puts ( "\tpushq %rsi" ); */
+
+    /* puts ( "\tmovq (%rsi), %rdi" ); */
+    /* puts ( "\tmovq $0, %rsi" ); */
+    /* puts ( "\tmovq $10, %rdx" ); */
+    /* puts ( "\tcall strtol" ); */
+
+    /* /1*  Now a new argument is an integer in rax *1/ */
+    /* puts ( "\tpopq %rsi" ); */
+    /* puts ( "\tpopq %rcx" ); */
+    /* puts ( "\tpushq %rax" ); */
+    /* puts ( "\tsubq $8, %rsi" ); */
+    /* puts ( "\tloop PARSE_ARGV" ); */
+
+    /* /1* Now the arguments are in order on stack *1/ */
+    /* for ( int arg=0; arg<MIN(6,first->nparms); arg++ ) */
+    /*     printf ( "\tpopq\t%s\n", record[arg] ); */
+
+                            // push run-time vars to stack
+                            /* puts( "\tpushq %rbp" ); */
+                            /* puts( "\tmovq %rsp, %rbp" ); */
+    
+                            // store arguments
+                            /* 8*node->entry->nparms(%rbp) */
+                            // call func
+                            /* printf("\tcall _%s\n", node->entry->name); */
+
+                            break;
                     } 
                 }
                 break;
+            default:
+                printf("\tmovq $errgen, %s\n", record[0]);
+                puts("\tcall puts");
+                break;
+
         }
     }
 }
