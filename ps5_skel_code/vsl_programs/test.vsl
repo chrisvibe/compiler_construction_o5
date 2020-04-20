@@ -8,15 +8,44 @@
 //     print x
 //     return 1
 // end
+
+// def main ()
+// begin
+//     var x
+//     x := increment(3)
+//     print x
+//     return 0
+// end
+// 
+// def increment (a)
+// begin
+//     return a 
+// end
+
+// def main ()
+// begin
+//     var x, y
+//     x := 1
+//     y := 2
+//     print x
+//     print y
+//     return 0
+// end
+
 def main ()
 begin
-    var x
-    x := increment( )
+    var x, y, z
+    x := 1
+    y := 2
+    z := 3
+    x := increment(y)
     print x
+    print y
+    print z
     return 0
 end
 
-def increment ()
+def increment (a)
 begin
-    return 9 
+    return a + 1
 end

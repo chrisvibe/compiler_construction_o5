@@ -42,7 +42,17 @@ END:
 _main:
 	pushq %rbp
 	movq %rsp, %rbp
+	subq $24, %rsp
+	pushq $0
+	movq $1, %rax
+	movq %rax, -8(%rbp)
+	movq $2, %rax
+	movq %rax, -16(%rbp)
+	movq $3, %rax
+	movq %rax, -24(%rbp)
+	movq %rax, %rdi
 	call _increment
+	movq -16(%rbp), %rax
 	movq %rax, -8(%rbp)
 	movq -8(%rbp), %rax
 	movq %rax, %rsi
@@ -50,13 +60,31 @@ _main:
 	call printf
 	movq $'\n', %rdi
 	call putchar
+	movq -16(%rbp), %rax
+	movq %rax, %rsi
+	movq $intout, %rdi
+	call printf
+	movq $'\n', %rdi
+	call putchar
+	movq -24(%rbp), %rax
+	movq %rax, %rsi
+	movq $intout, %rdi
+	call printf
+	movq $'\n', %rdi
+	call putchar
 	movq $0, %rax
-	popq %rbp
+	leave
 	retq
 .section .text
 _increment:
 	pushq %rbp
 	movq %rsp, %rbp
-	movq $9, %rax
-	popq %rbp
+	subq $0, %rsp
+	movq %rdi, -8(%rbp)
+	movq -8(%rbp), %rax
+	pushq %rax
+	movq $1, %rax
+	addq %rax, %rsp
+	popq %rax
+	leave
 	retq

@@ -11,7 +11,7 @@ static void hello_world ( symbol_t *symbol );
 static void generate_stringtable ( void );
 static void generate_main ( symbol_t *first );
 void generate_program ( void );
-static void generate_function ( node_t* node );
+static void generate_function(symbol_t* sym);
 void node_to_assembly(node_t* node, int n_parms);
 void tree_to_assembly(node_t* node, int n_parms);
 void handle_global_list();
@@ -102,29 +102,34 @@ generate_program ( void )
     node_to_assembly(root, 0);
 }
     
-static void generate_function ( node_t* node ) {
+static void generate_function (symbol_t* sym) {
 
     // make function label
     puts ( ".section .text" );
-    printf( "_%s:\n", (char*)node->children[0]->data);
+    printf( "_%s:\n", sym->name);
     
     // push run time variables to stack
     puts ( "\tpushq %rbp" );  // save old base pointer to stack
     puts ( "\tmovq %rsp, %rbp" );  // current stack location: new base
+    
+    // allocate space on stack 
+    int stack_size = sym->locals->size - sym->nparms;
+    printf("\tsubq $%i, %%rsp\n" , 8 * stack_size);
+    if (stack_size%16 != 0)
+        puts("\tpushq $0");
 
-    // load parameters -0x8(%rbp) stores first parameter and so on
+    // load parameters -8(%rbp) stores first parameter and so on
     // TODO consider using 4x offsett instead??
     // TODO what if many
-    int n_parms = node->children[1] == NULL ? 0 : node->children[1]->n_children;
-    for (int i = 0; i < n_parms; i++) {
-        printf( "\tmovq %s, -0x%i(%%rbp)\n", record[0], (i+1)*8);
+    for (int i = 0; i < sym->nparms; i++) {
+        printf( "\tmovq %s, -%i(%%rbp)\n", record[0], (int)(i+1)*8);
     }
     
     // generate vsl code from node tree
-    tree_to_assembly(node, n_parms);
+    tree_to_assembly(sym->node, sym->nparms);
 
     // restore previos base pointer
-    puts( "\tpopq %rbp" );
+    puts( "\tleave" );
     puts( "\tretq" );
 
 }
@@ -140,11 +145,18 @@ void handle_global_list() {
         symbol_t* sym = global_list[i];
         if (sym->type == SYM_GLOBAL_VAR) { // add global variables (placeholders)
             printf( "_%s: .zero 8\n", sym->name);
-        } else if (sym->type == SYM_FUNCTION && !first) {
-            first = sym;
+        } else if (sym->type == SYM_FUNCTION) {
+            if (!first)
+                first = sym;
         }
     }
     generate_main(first);
+    for(int i = 0; i < n_globals; i++) {
+        symbol_t* sym = global_list[i];
+        if (sym->type == SYM_FUNCTION) {
+            generate_function(sym);
+        }
+    }
 }
 
 void node_to_assembly( node_t* node, int n_parms) {
@@ -183,7 +195,6 @@ void node_to_assembly( node_t* node, int n_parms) {
                 tree_to_assembly(node, n_parms);
                 break;
             case FUNCTION:
-                generate_function(node);
                 break;
             case STATEMENT:
                 tree_to_assembly(node, n_parms);
@@ -201,7 +212,7 @@ void node_to_assembly( node_t* node, int n_parms) {
                     switch (sym->type) {
                         case SYM_LOCAL_VAR: // TODO what if many
                             node_to_assembly(node->children[1], n_parms); // resolve expression
-                            printf("\tmovq %s, -%i(%%rbp)\n", return_rec, (int) (8 * (sym->seq + MIN(n_parms, 6) + 1)));
+                            printf("\tmovq %s, -%i(%%rbp)\n", return_rec, (int)(8 * (sym->seq + MIN(n_parms, 6) + 1)));
                             break;
                         case SYM_GLOBAL_VAR:
                             node_to_assembly(node->children[1], n_parms); // resolve expression
@@ -224,9 +235,10 @@ void node_to_assembly( node_t* node, int n_parms) {
                     switch (*((char*)node->data)){
                         case '+':
                             node_to_assembly(node->children[0], n_parms); // arg1
-                            printf("\tmovq %s, %s\n", return_rec, record[0]);
+                            printf("\tpushq %s\n", return_rec); // arg1 on stack
                             node_to_assembly(node->children[1], n_parms); // arg2
-                            printf("\taddq %s, %s, %s\n", record[0], return_rec, return_rec);
+                            printf("\taddq %s, %%rsp\n", return_rec);
+                            printf("\tpopq %s\n", return_rec);
                             break;
                     }
                 } else {
@@ -263,9 +275,14 @@ void node_to_assembly( node_t* node, int n_parms) {
                             printf("\tmovq -%i(%%rbp), %s\n", (int)(8 * (sym->seq + MIN(n_parms, 6) + 1)), return_rec);
                             break;
                         case SYM_PARAMETER: // TODO what if many
-                            printf("\tmovq -%i(%%rbp), %s\n", (int)(8 * sym->seq), return_rec);
+                            printf("\tmovq -%i(%%rbp), %s\n", (int)(8 * (sym->seq + 1)), return_rec);
                             break;
-                        case SYM_FUNCTION:
+                        case SYM_FUNCTION: ;
+                            // put parameters in registers TODO what if many
+                            for (int i = 0; i < sym->nparms; i++) {
+                                node_to_assembly(node->children[i], n_parms);
+                                printf( "\tmovq %s, %s\n", return_rec, record[i]);
+                            }
                             printf("\tcall _%s\n", sym->name);
                             break;
                     } 
@@ -313,7 +330,6 @@ void handle_print_statement(node_t* print_statement, int n_parms) {
                 // print error msg
                 printf ( "\tmovq $errprint, %s\n", record[0]);
                 puts ( "\tcall puts" );
-                puts( "\tcall printf" );
                 break;
         }
         puts( "\tcall printf" );
@@ -330,7 +346,6 @@ hello_world ( symbol_t *symbol ) // for hello.vsl
     // make function label
     printf( "_%s:\n", symbol->name);
     // push run-time vars to stack
-    puts( "\tpushq %rbp" );
     puts( "\tmovq %rsp, %rbp" );
 
     // print a string 
