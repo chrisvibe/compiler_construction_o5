@@ -8,30 +8,20 @@
      DECLARATION
       VARIABLE_LIST
        IDENTIFIER_DATA(x)
-       IDENTIFIER_DATA(y)
     STATEMENT_LIST
-     PRINT_STATEMENT
-      STRING_DATA("Testing plain call/return and expression evaluation")
      ASSIGNMENT_STATEMENT
       IDENTIFIER_DATA(x)
-      NUMBER_DATA(1)
-     ASSIGNMENT_STATEMENT
-      IDENTIFIER_DATA(y)
       EXPRESSION((null))
        IDENTIFIER_DATA(increment)
-       EXPRESSION_LIST
-        IDENTIFIER_DATA(x)
+       (nil)
      PRINT_STATEMENT
-      IDENTIFIER_DATA(y)
+      IDENTIFIER_DATA(x)
      RETURN_STATEMENT
       NUMBER_DATA(0)
   FUNCTION
    IDENTIFIER_DATA(increment)
-   VARIABLE_LIST
-    IDENTIFIER_DATA(a)
+   (nil)
    BLOCK
     STATEMENT_LIST
      RETURN_STATEMENT
-      EXPRESSION(+)
-       IDENTIFIER_DATA(a)
-       NUMBER_DATA(1)
+      NUMBER_DATA(9)

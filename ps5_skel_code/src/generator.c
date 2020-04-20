@@ -12,15 +12,14 @@ static void generate_stringtable ( void );
 static void generate_main ( symbol_t *first );
 void generate_program ( void );
 static void generate_function ( node_t* node );
-void node_to_assembly( node_t* node );
-void tree_to_assembly(node_t* node);
+void node_to_assembly(node_t* node, int n_parms);
+void tree_to_assembly(node_t* node, int n_parms);
 void handle_global_list();
-void handle_print_statement(node_t* print_statement);
+void handle_print_statement(node_t* print_statement, int n_parms);
 
 static const char *record[6] = {
     "%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"
 };
-
 
 static void
 generate_stringtable ( void )
@@ -54,7 +53,7 @@ generate_main ( symbol_t *first )
     puts ( "\tpushq %rbp" );
     puts ( "\tmovq %rsp, %rbp" );
 
-    puts ( "\tsubq $1, %rdi" );
+    puts ( "\tsubq $1, %rdi" ); // allocate stack space
     printf ( "\tcmpq $%zu, %%rdi\n", first->nparms );
     puts ( "\tjne ABORT" );
     puts ( "\tcmpq $0, %rdi" );
@@ -100,7 +99,7 @@ void
 generate_program ( void )
 {
     generate_stringtable();
-    node_to_assembly(root);
+    node_to_assembly(root, 0);
 }
     
 static void generate_function ( node_t* node ) {
@@ -110,18 +109,24 @@ static void generate_function ( node_t* node ) {
     printf( "_%s:\n", (char*)node->children[0]->data);
     
     // push run time variables to stack
-    puts ( "\tpushq %rbp" );
-    puts ( "\tmovq %rsp, %rbp" );
+    puts ( "\tpushq %rbp" );  // save old base pointer to stack
+    puts ( "\tmovq %rsp, %rbp" );  // current stack location: new base
+
+    // load parameters -0x8(%rbp) stores first parameter and so on
+    // TODO consider using 4x offsett instead??
+    // TODO what if many
+    int n_parms = node->children[1] == NULL ? 0 : node->children[1]->n_children;
+    for (int i = 0; i < n_parms; i++) {
+        printf( "\tmovq %s, -0x%i(%%rbp)\n", record[0], (i+1)*8);
+    }
     
     // generate vsl code from node tree
-    tree_to_assembly(node);
+    tree_to_assembly(node, n_parms);
 
-    // exit
-    puts ( "\tcall exit" );
-
-    // restore run time variables?????
+    // restore previos base pointer
     puts( "\tpopq %rbp" );
-    puts( "\tmovq %rsp, %rbp" );
+    puts( "\tretq" );
+
 }
 
 void handle_global_list() {
@@ -142,68 +147,71 @@ void handle_global_list() {
     generate_main(first);
 }
 
-void node_to_assembly( node_t* node ) {
+void node_to_assembly( node_t* node, int n_parms) {
     if (node) {
+        symbol_t* sym;
         switch(node->type) {
             case PROGRAM:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case GLOBAL_LIST:
                 handle_global_list();
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case GLOBAL:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case STATEMENT_LIST:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case PRINT_LIST:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case EXPRESSION_LIST:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case VARIABLE_LIST:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case ARGUMENT_LIST:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case PARAMETER_LIST:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case DECLARATION_LIST:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case FUNCTION:
                 generate_function(node);
                 break;
             case STATEMENT:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case BLOCK:
-                tree_to_assembly(node);
+                tree_to_assembly(node, n_parms);
                 break;
             case RETURN_STATEMENT:
-                node_to_assembly(node->children[0]);
+                node_to_assembly(node->children[0], n_parms);
                 break;
             case ASSIGNMENT_STATEMENT: ;
                 // identifier always first child of assignment_statement
-                symbol_t* identifier = node->children[0]->entry;
-                switch (identifier->type) {
-                    case SYM_LOCAL_VAR:
-                        node_to_assembly(node->children[1]); // resolve expression
-                        printf("\tmovq %s, %li(%%rbp)\n", return_rec, (8*identifier->seq));
-                        break;
-                    case SYM_GLOBAL_VAR:
-                        node_to_assembly(node->children[1]); // resolve expression
-                        printf("\tmovq %s, _%s\n", return_rec, identifier->name);
-                        break;
+                sym = node->n_children ? node->children[0]->entry : NULL;
+                if (sym) {
+                    switch (sym->type) {
+                        case SYM_LOCAL_VAR: // TODO what if many
+                            node_to_assembly(node->children[1], n_parms); // resolve expression
+                            printf("\tmovq %s, -%i(%%rbp)\n", return_rec, (int) (8 * (sym->seq + MIN(n_parms, 6) + 1)));
+                            break;
+                        case SYM_GLOBAL_VAR:
+                            node_to_assembly(node->children[1], n_parms); // resolve expression
+                            printf("\tmovq %s, _%s\n", return_rec, sym->name);
+                            break;
+                    }
                 }
                 break;
             case PRINT_STATEMENT:
-                handle_print_statement(node);
+                handle_print_statement(node, n_parms);
                 break;
             case NULL_STATEMENT:
                 break;
@@ -215,14 +223,14 @@ void node_to_assembly( node_t* node ) {
                 if (node->n_children == 2 && node->data) {
                     switch (*((char*)node->data)){
                         case '+':
-                            node_to_assembly(node->children[0]); // arg1
+                            node_to_assembly(node->children[0], n_parms); // arg1
                             printf("\tmovq %s, %s\n", return_rec, record[0]);
-                            node_to_assembly(node->children[1]); // arg2
+                            node_to_assembly(node->children[1], n_parms); // arg2
                             printf("\taddq %s, %s, %s\n", record[0], return_rec, return_rec);
                             break;
                     }
                 } else {
-                    tree_to_assembly(node);
+                    tree_to_assembly(node, n_parms);
                 }
                 break;
             case RELATION:
@@ -236,7 +244,7 @@ void node_to_assembly( node_t* node ) {
             case DECLARATION:
                 break;
             case PRINT_ITEM:
-                handle_print_statement(node);
+                handle_print_statement(node, n_parms);
                 break;
             case NUMBER_DATA:
                 printf("\tmovq $%zu, %s\n", *((size_t *)node->data), return_rec);
@@ -244,60 +252,21 @@ void node_to_assembly( node_t* node ) {
             case STRING_DATA:
                 printf("\tmovq $STR%zu, %s\n", *((size_t *)node->data), return_rec);
                 break;
-            case IDENTIFIER_DATA:
-                if (node->entry) {
-                    switch (node->entry->type) {
+            case IDENTIFIER_DATA: ;
+                sym = node->entry;
+                if (sym) {
+                    switch (sym->type) {
                         case SYM_GLOBAL_VAR:
-                            printf("\tmovq _%s, %s\n", node->entry->name, return_rec);
+                            printf("\tmovq _%s, %s\n", sym->name, return_rec);
                             break;
-                        case SYM_LOCAL_VAR:
-                            printf("\tmovq %li(%%rbp), %s\n", (8*node->entry->seq), return_rec);
+                        case SYM_LOCAL_VAR: // TODO what if many
+                            printf("\tmovq -%i(%%rbp), %s\n", (int)(8 * (sym->seq + MIN(n_parms, 6) + 1)), return_rec);
                             break;
-                        case SYM_PARAMETER:
+                        case SYM_PARAMETER: // TODO what if many
+                            printf("\tmovq -%i(%%rbp), %s\n", (int)(8 * sym->seq), return_rec);
                             break;
-                        case SYM_FUNCTION: // TODO parameters
-    /* // experiment for agruments */
-    /* symbol_t* first = node->entry; */
-    puts ( "\tpushq %rbp" );
-    puts ( "\tmovq %rsp, %rbp" );
-
-    /* puts ( "\tsubq $1, %rdi" ); */
-    /* printf ( "\tcmpq $%zu, %%rdi\n", first->nparms ); */
-    /* puts ( "\tjne ABORT" ); */
-    /* puts ( "\tcmpq $0, %rdi" ); */
-    /* puts ( "\tjz SKIP_ARGS" ); */
-
-    /* puts ( "\tmovq %rdi, %rcx" ); */
-    /* printf ( "\taddq $%zu, %%rsi\n", 8*first->nparms ); */
-    /* puts ( "PARSE_ARGV:" ); */
-    /* puts ( "\tpushq %rcx" ); */
-    /* puts ( "\tpushq %rsi" ); */
-
-    /* puts ( "\tmovq (%rsi), %rdi" ); */
-    /* puts ( "\tmovq $0, %rsi" ); */
-    /* puts ( "\tmovq $10, %rdx" ); */
-    /* puts ( "\tcall strtol" ); */
-
-    /* /1*  Now a new argument is an integer in rax *1/ */
-    /* puts ( "\tpopq %rsi" ); */
-    /* puts ( "\tpopq %rcx" ); */
-    /* puts ( "\tpushq %rax" ); */
-    /* puts ( "\tsubq $8, %rsi" ); */
-    /* puts ( "\tloop PARSE_ARGV" ); */
-
-    /* /1* Now the arguments are in order on stack *1/ */
-    /* for ( int arg=0; arg<MIN(6,first->nparms); arg++ ) */
-    /*     printf ( "\tpopq\t%s\n", record[arg] ); */
-
-                            // push run-time vars to stack
-                            /* puts( "\tpushq %rbp" ); */
-                            /* puts( "\tmovq %rsp, %rbp" ); */
-    
-                            // store arguments
-                            /* 8*node->entry->nparms(%rbp) */
-                            // call func
-                            /* printf("\tcall _%s\n", node->entry->name); */
-
+                        case SYM_FUNCTION:
+                            printf("\tcall _%s\n", sym->name);
                             break;
                     } 
                 }
@@ -312,17 +281,17 @@ void node_to_assembly( node_t* node ) {
 }
 
 
-void tree_to_assembly(node_t* node) {
+void tree_to_assembly(node_t* node, int n_parms) {
     for (int i = 0; i < node->n_children; i++) {
         node_t* child = node->children[i];
-        node_to_assembly(child);
+        node_to_assembly(child, n_parms);
     } 
 }
 
-void handle_print_statement(node_t* print_statement) {
+void handle_print_statement(node_t* print_statement, int n_parms) {
     for (int i = 0; i < print_statement->n_children; i++) {
         node_t* print_item = print_statement->children[i];
-        node_to_assembly(print_item);  // print_item should now reside in rax
+        node_to_assembly(print_item, n_parms);  // print_item should now reside in rax
         printf("\tmovq %s, %s\n", return_rec, record[1]);
         switch(print_item->type) {
             case STRING_DATA: // print a string 

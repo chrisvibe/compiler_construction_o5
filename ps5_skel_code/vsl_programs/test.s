@@ -4,10 +4,7 @@ strout: .string "%s"
 errout: .string "Wrong number of arguments"
 errprint: .string "Cant print this symbol"
 errgen: .string "GENERIC ERROR!!!"
-STR0: .string "Hello, world!"
-STR1: .string "Goodbye, world!"
 .section .data
-_x: .zero 8
 .globl main
 .section .text
 main:
@@ -33,7 +30,7 @@ PARSE_ARGV:
 	subq $8, %rsi
 	loop PARSE_ARGV
 SKIP_ARGS:
-	call _hello
+	call _main
 	jmp END
 ABORT:
 	movq $errout, %rdi
@@ -42,30 +39,24 @@ END:
 	movq %rax, %rdi
 	call exit
 .section .text
-_hello:
+_main:
 	pushq %rbp
 	movq %rsp, %rbp
-	movq $STR0, %rax
-	movq %rax, %rsi
-	movq $strout, %rdi
-	call printf
-	movq $'\n', %rdi
-	call putchar
-	movq $STR1, %rax
-	movq %rax, %rsi
-	movq $strout, %rdi
-	call printf
-	movq $'\n', %rdi
-	call putchar
-	movq $8, %rax
-	movq %rax, 0(%rbp)
-	movq 0(%rbp), %rax
+	call _increment
+	movq %rax, -8(%rbp)
+	movq -8(%rbp), %rax
 	movq %rax, %rsi
 	movq $intout, %rdi
 	call printf
 	movq $'\n', %rdi
 	call putchar
-	movq $1, %rax
-	call exit
+	movq $0, %rax
 	popq %rbp
+	retq
+.section .text
+_increment:
+	pushq %rbp
 	movq %rsp, %rbp
+	movq $9, %rax
+	popq %rbp
+	retq

@@ -10,15 +10,13 @@
 // end
 def main ()
 begin
-    var x, y
-    print "Testing plain call/return and expression evaluation"
-    x := 1 
-    y := increment ( x )
-    print y
+    var x
+    x := increment( )
+    print x
     return 0
 end
 
-def increment ( a )
+def increment ()
 begin
-    return a+1 
+    return 9 
 end
