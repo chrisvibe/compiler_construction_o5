@@ -58,18 +58,6 @@ _main:
 	call printf
 	movq $'\n', %rdi
 	call putchar
-	movq -16(%rbp), %rax
-	movq %rax, %rsi
-	movq $intout, %rdi
-	call printf
-	movq $'\n', %rdi
-	call putchar
-	movq $1, %rax
-	movq %rax, %rsi
-	movq $intout, %rdi
-	call printf
-	movq $'\n', %rdi
-	call putchar
 	movq $0, %rax
 	leave
 	ret
@@ -80,12 +68,14 @@ _increment:
 	pushq %rdi
 	subq $8, %rsp
 	pushq $0
-	movq $1, %rax
+	movq $6, %rax
 	movq %rax, -16(%rbp)
+	pushq %rdx
 	movq -8(%rbp), %rax
 	pushq %rax
 	movq -16(%rbp), %rax
-	addq %rax, (%rsp)
-	popq %rax
+	cqo
+	divq (%rsp)
+	popq %rdx
 	leave
 	ret

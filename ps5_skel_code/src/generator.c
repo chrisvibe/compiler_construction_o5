@@ -16,6 +16,9 @@ void node_to_assembly(node_t* node, int n_parms);
 void tree_to_assembly(node_t* node, int n_parms);
 void handle_global_list();
 void handle_print_statement(node_t* print_statement, int n_parms);
+void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms);
+void handle_mulq(char* assembly_op, node_t* node, int n_parms);
+void handle_divq(char* assembly_op, node_t* node, int n_parms);
 
 static const char *record[6] = {
     "%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"
@@ -113,11 +116,9 @@ static void generate_function (symbol_t* sym) {
     puts ( "\tmovq %rsp, %rbp" );  // current stack location: new base
     
     // load parameters -8(%rbp) stores first parameter and so on
-    // TODO consider using 4x offsett instead??
-    // TODO what if many
-    for (int i = 0; i < sym->nparms; i++) {
+    for (int i = 0; i < sym->nparms; i++) {  // below 2 lines are equivalent
         /* printf( "\tmovq %s, -%i(%%rbp)\n", record[i], (i+1)*8); */
-        printf( "\tpushq %s\n", record[i]);
+        printf( "\tpushq %s\n", record[i]); 
     }
 
     // allocate space on stack 
@@ -235,11 +236,16 @@ void node_to_assembly( node_t* node, int n_parms) {
                 if (node->data) {
                     switch (*((char*)node->data)){
                         case '+':
-                            node_to_assembly(node->children[0], n_parms); // arg1
-                            printf("\tpushq %s\n", return_rec); // arg1 on stack
-                            node_to_assembly(node->children[1], n_parms); // arg2
-                            printf("\taddq %s, (%%rsp)\n", return_rec);
-                            printf("\tpopq %s\n", return_rec);
+                            handle_pluss_minus("addq", node, n_parms);
+                            break;
+                        case '-':
+                            handle_pluss_minus("subq", node, n_parms);
+                            break;
+                        case '*':
+                            handle_mulq("mulq", node, n_parms);
+                            break;
+                        case '/':
+                            handle_divq("divq", node, n_parms);
                             break;
                     }
                 } else if (node->n_children == 2) {
@@ -355,6 +361,34 @@ void handle_print_statement(node_t* print_statement, int n_parms) {
     }
 }
 
+// binary in terms of assembly operands (implicit parameter passing)
+void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms) {
+    node_to_assembly(node->children[1], n_parms); // arg2
+    printf("\tpushq %s\n", return_rec); // arg2 on stack
+    node_to_assembly(node->children[0], n_parms); // arg1
+    printf("\t%s %s, (%%rsp)\n", assembly_op, return_rec);
+    printf("\tpopq %s\n", return_rec);
+}
+
+// unary in terms of assembly operands (implicit parameter passing)
+void handle_mulq(char* assembly_op, node_t* node, int n_parms) {
+    printf("\tpushq %s\n", "%rdx"); // arg2 on stack
+    node_to_assembly(node->children[1], n_parms); // arg2
+    printf("\tpushq %s\n", return_rec); // arg1 on stack
+    node_to_assembly(node->children[0], n_parms); // arg1
+    printf("\t%s (%%rsp)\n", assembly_op);
+    printf("\tpopq %s\n", "%rdx");
+}
+
+void handle_divq(char* assembly_op, node_t* node, int n_parms) {
+    printf("\tpushq %s\n", "%rdx"); // arg2 on stack
+    node_to_assembly(node->children[1], n_parms); // arg2
+    printf("\tpushq %s\n", "%rax"); // arg1 on stack
+    node_to_assembly(node->children[0], n_parms); // arg1
+    puts("\tcqo");
+    printf("\t%s (%%rsp)\n", assembly_op);
+    printf("\tpopq %s\n", "%rdx");
+}
 
 static void
 hello_world ( symbol_t *symbol ) // for hello.vsl

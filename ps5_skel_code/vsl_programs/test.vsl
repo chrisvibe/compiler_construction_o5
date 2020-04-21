@@ -39,14 +39,12 @@ begin
     y := 2
     x := increment(y)
     print x
-    print y
-    print 1
     return 0
 end
 
 def increment (a)
 begin
     var y
-    y := 1
-    return a + y
+    y := 6
+    return y / a
 end
