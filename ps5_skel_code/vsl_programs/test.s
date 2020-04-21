@@ -48,11 +48,9 @@ _main:
 	movq %rax, -8(%rbp)
 	movq $2, %rax
 	movq %rax, -16(%rbp)
-	movq $3, %rax
-	movq %rax, -24(%rbp)
+	movq -16(%rbp), %rax
 	movq %rax, %rdi
 	call _increment
-	movq -16(%rbp), %rax
 	movq %rax, -8(%rbp)
 	movq -8(%rbp), %rax
 	movq %rax, %rsi
@@ -66,7 +64,7 @@ _main:
 	call printf
 	movq $'\n', %rdi
 	call putchar
-	movq -24(%rbp), %rax
+	movq $1, %rax
 	movq %rax, %rsi
 	movq $intout, %rdi
 	call printf
@@ -74,17 +72,20 @@ _main:
 	call putchar
 	movq $0, %rax
 	leave
-	retq
+	ret
 .section .text
 _increment:
 	pushq %rbp
 	movq %rsp, %rbp
-	subq $0, %rsp
-	movq %rdi, -8(%rbp)
+	pushq %rdi
+	subq $8, %rsp
+	pushq $0
+	movq $1, %rax
+	movq %rax, -16(%rbp)
 	movq -8(%rbp), %rax
 	pushq %rax
-	movq $1, %rax
-	addq %rax, %rsp
+	movq -16(%rbp), %rax
+	addq %rax, (%rsp)
 	popq %rax
 	leave
-	retq
+	ret

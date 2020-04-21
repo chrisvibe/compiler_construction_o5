@@ -112,25 +112,26 @@ static void generate_function (symbol_t* sym) {
     puts ( "\tpushq %rbp" );  // save old base pointer to stack
     puts ( "\tmovq %rsp, %rbp" );  // current stack location: new base
     
+    // load parameters -8(%rbp) stores first parameter and so on
+    // TODO consider using 4x offsett instead??
+    // TODO what if many
+    for (int i = 0; i < sym->nparms; i++) {
+        /* printf( "\tmovq %s, -%i(%%rbp)\n", record[i], (i+1)*8); */
+        printf( "\tpushq %s\n", record[i]);
+    }
+
     // allocate space on stack 
     int stack_size = sym->locals->size - sym->nparms;
     printf("\tsubq $%i, %%rsp\n" , 8 * stack_size);
     if (stack_size%16 != 0)
         puts("\tpushq $0");
-
-    // load parameters -8(%rbp) stores first parameter and so on
-    // TODO consider using 4x offsett instead??
-    // TODO what if many
-    for (int i = 0; i < sym->nparms; i++) {
-        printf( "\tmovq %s, -%i(%%rbp)\n", record[0], (int)(i+1)*8);
-    }
     
     // generate vsl code from node tree
     tree_to_assembly(sym->node, sym->nparms);
 
     // restore previos base pointer
     puts( "\tleave" );
-    puts( "\tretq" );
+    puts( "\tret" );
 
 }
 
@@ -231,15 +232,30 @@ void node_to_assembly( node_t* node, int n_parms) {
             case WHILE_STATEMENT:
                 break;
             case EXPRESSION:
-                if (node->n_children == 2 && node->data) {
+                if (node->data) {
                     switch (*((char*)node->data)){
                         case '+':
                             node_to_assembly(node->children[0], n_parms); // arg1
                             printf("\tpushq %s\n", return_rec); // arg1 on stack
                             node_to_assembly(node->children[1], n_parms); // arg2
-                            printf("\taddq %s, %%rsp\n", return_rec);
+                            printf("\taddq %s, (%%rsp)\n", return_rec);
                             printf("\tpopq %s\n", return_rec);
                             break;
+                    }
+                } else if (node->n_children == 2) {
+                    // function call identifier and expression list of parameters are 
+                    // not indented always indented on same level. Thats why this is here... 
+                    // Cant access parameters from identifier node.
+                    sym = node->children[0]->entry;
+                    if (sym->type == SYM_FUNCTION && node->children[1]->type == EXPRESSION_LIST) {
+                        // load into record
+                        for (int i = 0; i < sym->nparms; i++) {
+                            node_to_assembly(node->children[1]->children[i], n_parms);
+                            printf( "\tmovq %s, %s\n", return_rec, record[i]);
+                        }
+                        printf("\tcall _%s\n", sym->name);
+                    } else {
+                        tree_to_assembly(node, n_parms);
                     }
                 } else {
                     tree_to_assembly(node, n_parms);
