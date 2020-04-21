@@ -1,5 +1,5 @@
 # TARGETS=$(shell ls *.vsl | sed s/\.vsl//g)
-TARGETS=$(shell ls test.vsl | sed s/\.vsl//g)
+TARGETS=$(shell ls harder.vsl | sed s/\.vsl//g)
 all: ${TARGETS}
 
 # Currently the binaries won't compile directly
@@ -31,8 +31,8 @@ purge: clean
 
 
 # # tree stuff
-TARGETS2=$(shell ls *.vsl | sed s/\.vsl/\.tree/g)
-TARGETS2=$(shell ls test.vsl | sed s/\.vsl/\.tree/g)
+# TARGETS2=$(shell ls *.vsl | sed s/\.vsl/\.tree/g)
+TARGETS2=$(shell ls easy.vsl | sed s/\.vsl/\.tree/g)
 tree: ${TARGETS2}
 %: %.tree
 %.tree: %.vsl

@@ -7,7 +7,6 @@
 #define MIN(a,b) (((a)<(b)) ? (a):(b))
 #define return_rec "%rax"
 
-static void hello_world ( symbol_t *symbol );
 static void generate_stringtable ( void );
 static void generate_main ( symbol_t *first );
 void generate_program ( void );
@@ -17,8 +16,9 @@ void tree_to_assembly(node_t* node, int n_parms);
 void handle_global_list();
 void handle_print_statement(node_t* print_statement, int n_parms);
 void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms);
-void handle_mulq(char* assembly_op, node_t* node, int n_parms);
-void handle_divq(char* assembly_op, node_t* node, int n_parms);
+void handle_mult_div(char* assembly_op, node_t* node, int n_parms);
+void handle_comparator(char* assembly_op, node_t* node, int n_parms);
+void handle_if_statement(node_t* node, int n_parms);
 
 static const char *record[6] = {
     "%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"
@@ -122,10 +122,11 @@ static void generate_function (symbol_t* sym) {
     }
 
     // allocate space on stack 
-    int stack_size = sym->locals->size - sym->nparms;
+    int stack_size = sym->locals->size;
     printf("\tsubq $%i, %%rsp\n" , 8 * stack_size);
-    if (stack_size%16 != 0)
+    if (((sym->locals->size+sym->nparms) * 8) % 16 != 0) { // 16 byte allignment dont ask me why
         puts("\tpushq $0");
+    }
     
     // generate vsl code from node tree
     tree_to_assembly(sym->node, sym->nparms);
@@ -148,7 +149,7 @@ void handle_global_list() {
         if (sym->type == SYM_GLOBAL_VAR) { // add global variables (placeholders)
             printf( "_%s: .zero 8\n", sym->name);
         } else if (sym->type == SYM_FUNCTION) {
-            if (!first)
+            if (!sym->seq)
                 first = sym;
         }
     }
@@ -229,6 +230,7 @@ void node_to_assembly( node_t* node, int n_parms) {
             case NULL_STATEMENT:
                 break;
             case IF_STATEMENT:
+                handle_if_statement(node, n_parms);
                 break;
             case WHILE_STATEMENT:
                 break;
@@ -239,18 +241,42 @@ void node_to_assembly( node_t* node, int n_parms) {
                             handle_pluss_minus("addq", node, n_parms);
                             break;
                         case '-':
-                            handle_pluss_minus("subq", node, n_parms);
+                            if (node->n_children == 2) {
+                                handle_pluss_minus("subq", node, n_parms);
+                            } else {
+                                node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
+                                printf("\tnegq %s\n", return_rec);
+                            }
                             break;
                         case '*':
-                            handle_mulq("mulq", node, n_parms);
+                            handle_mult_div("imulq", node, n_parms);
                             break;
                         case '/':
-                            handle_divq("divq", node, n_parms);
+                            handle_mult_div("idivq", node, n_parms);
+                            break;
+                        case '~':
+                            node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
+                            printf("\tnotq %s\n", return_rec);
+                            break;
+                        case '|':
+                            node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
+                            printf("\torq %s\n", return_rec);
+                            break;
+                        case '&':
+                            node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
+                            printf("\tandq %s\n", return_rec);
+                            break;
+                        case '^':
+                            node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
+                            printf("\txorq %s\n", return_rec);
+                            break;
+                        case '<':
+                            handle_comparator("addq", node, n_parms);
                             break;
                     }
                 } else if (node->n_children == 2) {
                     // function call identifier and expression list of parameters are 
-                    // not indented always indented on same level. Thats why this is here... 
+                    // not indented always indented on same level. Thats why this is here... pretty sure parameters should be in parameter list! :(
                     // Cant access parameters from identifier node.
                     sym = node->children[0]->entry;
                     if (sym->type == SYM_FUNCTION && node->children[1]->type == EXPRESSION_LIST) {
@@ -371,52 +397,61 @@ void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms) {
 }
 
 // unary in terms of assembly operands (implicit parameter passing)
-void handle_mulq(char* assembly_op, node_t* node, int n_parms) {
-    printf("\tpushq %s\n", "%rdx"); // arg2 on stack
-    node_to_assembly(node->children[1], n_parms); // arg2
-    printf("\tpushq %s\n", return_rec); // arg1 on stack
-    node_to_assembly(node->children[0], n_parms); // arg1
-    printf("\t%s (%%rsp)\n", assembly_op);
-    printf("\tpopq %s\n", "%rdx");
-}
-
-void handle_divq(char* assembly_op, node_t* node, int n_parms) {
-    printf("\tpushq %s\n", "%rdx"); // arg2 on stack
-    node_to_assembly(node->children[1], n_parms); // arg2
-    printf("\tpushq %s\n", "%rax"); // arg1 on stack
-    node_to_assembly(node->children[0], n_parms); // arg1
+void handle_mult_div(char* assembly_op, node_t* node, int n_parms) {
+    printf("\tpushq %s\n", record[0]);
+    node_to_assembly(node->children[1], n_parms);
+    printf("\tpushq %s\n", return_rec);
+    node_to_assembly(node->children[0], n_parms);
     puts("\tcqo");
     printf("\t%s (%%rsp)\n", assembly_op);
-    printf("\tpopq %s\n", "%rdx");
+    printf("\tpopq %s\n", record[0]);
+    printf("\tpopq %s\n", record[0]);
+}
+/* void handle_mult_div(char* assembly_op, node_t* node, int n_parms) { */
+/*     node_to_assembly(node->children[1], n_parms); // arg2 on return_rec */
+/*     printf("\tpushq %s\n", return_rec); // arg2 temp on stack */
+/*     node_to_assembly(node->children[0], n_parms); // arg1 on return_rec */
+/*     printf("\tpopq %s\n", record[0]); // recover arg2 from stack */
+/*     printf("\t%s (%%rsp)\n", assembly_op); // result stored in rax implicitly */
+/* } */
+
+void handle_comparator(char* assembly_op, node_t* node, int n_parms) {
+    node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
+    printf("\tmovq %s, %s\n", return_rec, record[0]); // arg1 on record[0]
+    node_to_assembly(node->children[1], n_parms); // arg2 on return_rec
+    printf("\t%s %s, %s\n", assembly_op, record[0], return_rec); // set flags
 }
 
-static void
-hello_world ( symbol_t *symbol ) // for hello.vsl
-{
-    // make function label
-    printf( "_%s:\n", symbol->name);
-    // push run-time vars to stack
-    puts( "\tmovq %rsp, %rbp" );
+// TODO not complete atm and should be recursive
+void handle_if_statement(node_t* node, int n_parms) {
+    static int id = 0;
 
-    // print a string 
-    puts( "\tmovq $strout, %rdi" );
-    puts( "\tmovq $STR0, %rsi" );
-    puts( "\tcall printf" );
+    // set flags by resolving boolean
+    node_to_assembly(node->children[0], n_parms);
 
-    // print newline
-    puts( "\tmovq $'\\n', %rdi" );
-    puts( "\tcall putchar" );
+    // figure out target_false location
+    char* target_false;
 
-    // print an int 
-    puts( "\tmovq $intout, %rdi" );
-    puts( "\tmovq $9, %rsi" );
-    puts( "\tcall printf" );
+    // route to target_false or continue
+    switch (*((char*)node->data)) {
+        case '=':
+            printf("\tjne (%s)\n", target_false);
+            break;
+        case '>':
+            printf("\tjle (%s)\n", target_false);
+            break;
+        case '<':
+            printf("\tjge (%s)\n", target_false);
+            break;
+    }
+    
+    // translate true path
+    node_to_assembly(node->children[0], n_parms);
 
-    // print newline
-    puts( "\tmovq $'\\n', %rdi" );
-    puts( "\tcall putchar" );
-    // return 0
-    puts( "\tmovq $0, %rax" );
-    // exit
-    puts ( "\tcall exit" );
+    // translate false path
+    node_to_assembly(node->children[0], n_parms);
+
+    // make labels for targets
+    char* label;
+    printf("\t\t%s%d\n", label, id++);
 }

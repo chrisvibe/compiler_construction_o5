@@ -1,0 +1,84 @@
+ PROGRAM
+ GLOBAL_LIST
+  FUNCTION
+   IDENTIFIER_DATA(start)
+   (nil)
+   BLOCK
+    DECLARATION_LIST
+     DECLARATION
+      VARIABLE_LIST
+       IDENTIFIER_DATA(x)
+    STATEMENT_LIST
+     PRINT_STATEMENT
+      STRING_DATA("Nested scopes coming up...")
+     ASSIGNMENT_STATEMENT
+      IDENTIFIER_DATA(x)
+      EXPRESSION((null))
+       IDENTIFIER_DATA(test_me)
+       EXPRESSION_LIST
+        NUMBER_DATA(1)
+     PRINT_STATEMENT
+      STRING_DATA("x:=")
+      IDENTIFIER_DATA(x)
+     RETURN_STATEMENT
+      NUMBER_DATA(0)
+  FUNCTION
+   IDENTIFIER_DATA(test_me)
+   VARIABLE_LIST
+    IDENTIFIER_DATA(a)
+   BLOCK
+    STATEMENT_LIST
+     PRINT_STATEMENT
+      STRING_DATA("Parameter a is a:=")
+      IDENTIFIER_DATA(a)
+     BLOCK
+      DECLARATION_LIST
+       DECLARATION
+        VARIABLE_LIST
+         IDENTIFIER_DATA(a)
+      STATEMENT_LIST
+       ASSIGNMENT_STATEMENT
+        IDENTIFIER_DATA(a)
+        NUMBER_DATA(2)
+       PRINT_STATEMENT
+        STRING_DATA("Outer scope has a:=")
+        IDENTIFIER_DATA(a)
+       BLOCK
+        DECLARATION_LIST
+         DECLARATION
+          VARIABLE_LIST
+           IDENTIFIER_DATA(b)
+         DECLARATION
+          VARIABLE_LIST
+           IDENTIFIER_DATA(a)
+        STATEMENT_LIST
+         ASSIGNMENT_STATEMENT
+          IDENTIFIER_DATA(a)
+          NUMBER_DATA(3)
+         ASSIGNMENT_STATEMENT
+          IDENTIFIER_DATA(b)
+          NUMBER_DATA(4)
+         BLOCK
+          STATEMENT_LIST
+           PRINT_STATEMENT
+            STRING_DATA("Inner scope has a:=")
+            IDENTIFIER_DATA(a)
+            STRING_DATA("and b:=")
+            IDENTIFIER_DATA(b)
+           ASSIGNMENT_STATEMENT
+            IDENTIFIER_DATA(b)
+            NUMBER_DATA(5)
+         PRINT_STATEMENT
+          STRING_DATA("b was updated to ")
+          IDENTIFIER_DATA(b)
+          STRING_DATA("in inner scope")
+       PRINT_STATEMENT
+        STRING_DATA("Outer scope (still) has a:=")
+        IDENTIFIER_DATA(a)
+     PRINT_STATEMENT
+      STRING_DATA("Return expression (a-1) using a:=")
+      IDENTIFIER_DATA(a)
+     RETURN_STATEMENT
+      EXPRESSION(-)
+       IDENTIFIER_DATA(a)
+       NUMBER_DATA(1)

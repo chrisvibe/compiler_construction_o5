@@ -34,17 +34,9 @@
 
 def main ()
 begin
-    var x, y, z
-    x := 1
-    y := 2
-    x := increment(y)
-    print x
-    return 0
-end
-
-def increment (a)
-begin
-    var y
+    var x, y
+    x := 2
     y := 6
-    return y / a
+    print x * y
+    return 0
 end
