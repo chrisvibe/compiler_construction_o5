@@ -132,7 +132,7 @@ static void generate_function (symbol_t* sym) {
     // generate vsl code from node tree
     tree_to_assembly(sym->node, sym->nparms);
 
-    // restore previos base pointer
+    // restore previous base pointer and return
     puts( "\tleave" );
     puts( "\tret" );
 
@@ -272,6 +272,7 @@ void node_to_assembly( node_t* node, int n_parms) {
                             node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
                             printf("\txorq %s\n", return_rec);
                             break;
+                        // TODO left shift and right shift 
                     }
                 } else if (node->n_children == 2) {
                     // function call identifier and expression list of parameters are 
@@ -294,14 +295,23 @@ void node_to_assembly( node_t* node, int n_parms) {
                 break;
             case RELATION: // set return_rec as 1 or 0 
                 if (node->n_children == 2) { 
-                    char* comparison = (char*)(node->data);
+                    char* relation = (char*)(node->data);
                     handle_comparator("cmpq", node, n_parms);
-                    switch (comparison[0]) { // first char
+                    switch (relation[0]) { // first char
                         case '=':
                             printf("\tsete %s\n", "%al");
                         break;
                         case '>':
-                            printf("\tsetg %s\n", "%al");
+                            if (relation[1]) // >=
+                                printf("\tsetge %s\n", "%al");
+                            else
+                                printf("\tsetg %s\n", "%al");
+                        break;
+                        case '<':
+                            if (relation[1]) // <=
+                                printf("\tsetle %s\n", "%al");
+                            else
+                                printf("\tsetl %s\n", "%al");
                         break;
                     }
                 }
@@ -400,6 +410,8 @@ void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms) {
     node_to_assembly(node->children[0], n_parms); // arg1
     printf("\t%s %s, %s\n", assembly_op, record[0], return_rec);
 }
+
+//TODO would be nice w a stack-based implementation... weird bugs
 /* void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms) { */
 /*     node_to_assembly(node->children[1], n_parms); // arg2 */
 /*     printf("\tpushq %s\n", return_rec); // arg2 on stack */
@@ -408,7 +420,8 @@ void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms) {
 /*     printf("\tpopq %s\n", return_rec); */
 /* } */
 
-// unary in terms of assembly operands (implicit parameter passing)
+//TODO dont know how i got this to work...
+// unary in terms of assembly operands (implicit parameter passing of result to rax)
 void handle_mult_div(char* assembly_op, node_t* node, int n_parms) {
     printf("\tpushq %s\n", record[0]);
     node_to_assembly(node->children[1], n_parms);
