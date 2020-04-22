@@ -1,7 +1,7 @@
 
 // This program is a simple test of conditionals, including nesting
 
-def while_test ()
+def if_test ()
 begin
     var a,b
     a := 10

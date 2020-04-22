@@ -19,6 +19,7 @@ void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms);
 void handle_mult_div(char* assembly_op, node_t* node, int n_parms);
 void handle_comparator(char* assembly_op, node_t* node, int n_parms);
 void handle_if_statement(node_t* node, int n_parms);
+void handle_while_statement(node_t* node, int n_parms);
 
 static const char *record[6] = {
     "%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"
@@ -233,6 +234,7 @@ void node_to_assembly( node_t* node, int n_parms) {
                 handle_if_statement(node, n_parms);
                 break;
             case WHILE_STATEMENT:
+                handle_while_statement(node, n_parms);
                 break;
             case EXPRESSION:
                 if (node->data) {
@@ -270,9 +272,6 @@ void node_to_assembly( node_t* node, int n_parms) {
                             node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
                             printf("\txorq %s\n", return_rec);
                             break;
-                        case '<':
-                            handle_comparator("addq", node, n_parms);
-                            break;
                     }
                 } else if (node->n_children == 2) {
                     // function call identifier and expression list of parameters are 
@@ -293,13 +292,20 @@ void node_to_assembly( node_t* node, int n_parms) {
                     tree_to_assembly(node, n_parms);
                 }
                 break;
-            case RELATION:
-                if (node->n_children == 2) {
-                    switch (*((char*)node->data)){
-                        case '<':
-                            break;
+            case RELATION: // set return_rec as 1 or 0 
+                if (node->n_children == 2) { 
+                    char* comparison = (char*)(node->data);
+                    handle_comparator("cmpq", node, n_parms);
+                    switch (comparison[0]) { // first char
+                        case '=':
+                            printf("\tsete %s\n", "%al");
+                        break;
+                        case '>':
+                            printf("\tsetg %s\n", "%al");
+                        break;
                     }
                 }
+                printf("\tmovzbl %s, %s\n", "%al", return_rec); // zero out rest of record_rec (keep boolean bit)
                 break;
             case DECLARATION:
                 break;
@@ -307,7 +313,7 @@ void node_to_assembly( node_t* node, int n_parms) {
                 handle_print_statement(node, n_parms);
                 break;
             case NUMBER_DATA:
-                printf("\tmovq $%zu, %s\n", *((size_t *)node->data), return_rec);
+                printf("\tmovq $%i, %s\n", *((int *)node->data), return_rec);
                 break;
             case STRING_DATA:
                 printf("\tmovq $STR%zu, %s\n", *((size_t *)node->data), return_rec);
@@ -419,39 +425,37 @@ void handle_comparator(char* assembly_op, node_t* node, int n_parms) {
     node_to_assembly(node->children[0], n_parms); // arg1 on return_rec
     printf("\tmovq %s, %s\n", return_rec, record[0]); // arg1 on record[0]
     node_to_assembly(node->children[1], n_parms); // arg2 on return_rec
-    printf("\t%s %s, %s\n", assembly_op, record[0], return_rec); // set flags
+    printf("\t%s %s, %s\n", assembly_op, return_rec, record[0]); // set flags
 }
 
-// TODO not complete atm and should be recursive
 void handle_if_statement(node_t* node, int n_parms) {
-    static int id = 0;
+    static int global_id = 0;
+    int id = global_id++; // needed as global id might change halfway thru this code
 
-    // set flags by resolving boolean
-    node_to_assembly(node->children[0], n_parms);
-
-    // figure out target_false location
-    char* target_false;
-
-    // route to target_false or continue
-    switch (*((char*)node->data)) {
-        case '=':
-            printf("\tjne (%s)\n", target_false);
-            break;
-        case '>':
-            printf("\tjle (%s)\n", target_false);
-            break;
-        case '<':
-            printf("\tjge (%s)\n", target_false);
-            break;
-    }
+    node_to_assembly(node->children[0], n_parms); // set return_rec to true or false by resolving boolean
+    printf("\tcmpq $1, %s\n", return_rec);
     
-    // translate true path
-    node_to_assembly(node->children[0], n_parms);
+    // crossroads 
+    printf("\tje __%s.%i__\n", "if", id);
+    if (node->n_children == 3)  // relation, if -> true_path, else -> false_path
+        printf("\tjne __%s.%i__\n", "else", id);
+    else
+        printf("\tjne __%s.%i__\n", "end", id);
 
-    // translate false path
-    node_to_assembly(node->children[0], n_parms);
+    // translate true path and make label
+    printf("\t__%s.%i__:\n", "if", id);
+    node_to_assembly(node->children[1], n_parms);
 
-    // make labels for targets
-    char* label;
-    printf("\t\t%s%d\n", label, id++);
+    // translate false path and make label
+    if (node->n_children == 3) {  // relation, if -> true_path, else -> false_path
+        printf("\t__%s.%i__:\n", "else", id);
+        node_to_assembly(node->children[2], n_parms);
+    }
+
+    // fi marker 
+    printf("\t__%s.%i__:\n", "end", id);
+}
+
+void handle_while_statement(node_t* node, int n_parms) {
+
 }
