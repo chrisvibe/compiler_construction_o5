@@ -111,17 +111,11 @@ static void generate_function (symbol_t* sym) {
     // make function label
     puts ( ".section .text" );
     printf( "_%s:\n", sym->name);
-    
+
     // push run time variables to stack
     puts ( "\tpushq %rbp" );  // save old base pointer to stack
     puts ( "\tmovq %rsp, %rbp" );  // current stack location: new base
     
-    // load parameters -8(%rbp) stores first parameter and so on
-    for (int i = 0; i < sym->nparms; i++) {  // below 2 lines are equivalent
-        /* printf( "\tmovq %s, -%i(%%rbp)\n", record[i], (i+1)*8); */
-        printf( "\tpushq %s\n", record[i]); 
-    }
-
     // allocate space on stack 
     int stack_size = sym->locals->size;
     printf("\tsubq $%i, %%rsp\n" , 8 * stack_size);
@@ -129,6 +123,17 @@ static void generate_function (symbol_t* sym) {
         puts("\tpushq $0");
     }
     
+    // load parameters to -8(%rbp) and so on. stores first 6 parameters
+    for (int i = 0; i < MIN(sym->nparms, 6); i++) {  // below 2 lines are equivalent
+        /* printf( "\tmovq %s, -%i(%%rbp)\n", record[i], (i+1)*8); */
+        printf( "\tpushq %s\n", record[i]); 
+    }
+    
+    // TODO overflow needs testing
+    /* for (int i = 0; i < sym->nparms - 6; i++) { */
+    /*     printf( "\tpushq %s\n", old_base_pointer); */ 
+    /* } */
+
     // generate vsl code from node tree
     tree_to_assembly(sym->node, sym->nparms);
 
@@ -214,9 +219,15 @@ void node_to_assembly( node_t* node, int n_parms) {
                 sym = node->n_children ? node->children[0]->entry : NULL;
                 if (sym) {
                     switch (sym->type) {
+                        case SYM_PARAMETER: // TODO what if many
+                            node_to_assembly(node->children[1], n_parms); // resolve expression
+                            printf("\tmovq %s, -%i(%%rbp)\n", return_rec, (int)(8 * (sym->seq + MIN(n_parms, 6) + 1)));
+                            /* printf("\tmovq %s, %i(%%rbp)\n", return_rec, (int)(8 * (sym->seq + 1))); */
+                            break;
                         case SYM_LOCAL_VAR: // TODO what if many
                             node_to_assembly(node->children[1], n_parms); // resolve expression
                             printf("\tmovq %s, -%i(%%rbp)\n", return_rec, (int)(8 * (sym->seq + MIN(n_parms, 6) + 1)));
+                            /* printf("\tmovq %s, -%i(%%rbp)\n", return_rec, (int)(8 * (sym->seq + 1))); */
                             break;
                         case SYM_GLOBAL_VAR:
                             node_to_assembly(node->children[1], n_parms); // resolve expression
@@ -277,13 +288,19 @@ void node_to_assembly( node_t* node, int n_parms) {
                 } else if (node->n_children == 2) {
                     // function call identifier and expression list of parameters are 
                     // not indented always indented on same level. Thats why this is here... pretty sure parameters should be in parameter list! :(
-                    // Cant access parameters from identifier node.
+                    // in other words we cant access parameters from identifier node below.
                     sym = node->children[0]->entry;
                     if (sym->type == SYM_FUNCTION && node->children[1]->type == EXPRESSION_LIST) {
-                        // load into record
-                        for (int i = 0; i < sym->nparms; i++) {
+                        // save into record
+                        for (int i = 0; i < MIN(sym->nparms, 6); i++) {
                             node_to_assembly(node->children[1]->children[i], n_parms);
                             printf( "\tmovq %s, %s\n", return_rec, record[i]);
+                        }
+                        // TODO not tested...
+                        // save overflow parameters (dont fit in our 6 record slots)
+                        for (int i = 0; i < sym->nparms-6; i++) {
+                            node_to_assembly(node->children[1]->children[sym->nparms - i - 1], n_parms);
+                            printf( "\tpushq %s\n", return_rec); 
                         }
                         printf("\tcall _%s\n", sym->name);
                     } else {
@@ -336,16 +353,22 @@ void node_to_assembly( node_t* node, int n_parms) {
                             printf("\tmovq _%s, %s\n", sym->name, return_rec);
                             break;
                         case SYM_LOCAL_VAR: // TODO what if many
-                            printf("\tmovq -%i(%%rbp), %s\n", (int)(8 * (sym->seq + MIN(n_parms, 6) + 1)), return_rec);
+                            printf("\tmovq -%i(%%rbp), %s\n", (int)(8 * (sym->seq + 1)), return_rec);
                             break;
                         case SYM_PARAMETER: // TODO what if many
                             printf("\tmovq -%i(%%rbp), %s\n", (int)(8 * (sym->seq + 1)), return_rec);
                             break;
                         case SYM_FUNCTION: ;
                             // put parameters in registers TODO what if many
-                            for (int i = 0; i < sym->nparms; i++) {
+                            for (int i = 0; i < MIN(sym->nparms, 6); i++) {
                                 node_to_assembly(node->children[i], n_parms);
                                 printf( "\tmovq %s, %s\n", return_rec, record[i]);
+                            }
+                            // TODO not tested...
+                            // save overflow parameters (dont fit in our 6 record slots)
+                            for (int i = 0; i < sym->nparms-6; i++) {
+                                node_to_assembly(node->children[sym->nparms - i - 1], n_parms);
+                                printf( "\tpushq %s\n", return_rec); 
                             }
                             printf("\tcall _%s\n", sym->name);
                             break;
