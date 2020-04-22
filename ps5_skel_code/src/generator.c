@@ -393,14 +393,20 @@ void handle_print_statement(node_t* print_statement, int n_parms) {
     }
 }
 
-// binary in terms of assembly operands (implicit parameter passing)
+// binary in terms of assembly operands (implicit parameter passing of result to rax)
 void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms) {
     node_to_assembly(node->children[1], n_parms); // arg2
-    printf("\tpushq %s\n", return_rec); // arg2 on stack
+    printf("\tmovq %s, %s\n", return_rec, record[0]); // save arg2 from overwrite
     node_to_assembly(node->children[0], n_parms); // arg1
-    printf("\t%s %s, (%%rsp)\n", assembly_op, return_rec);
-    printf("\tpopq %s\n", return_rec);
+    printf("\t%s %s, %s\n", assembly_op, record[0], return_rec);
 }
+/* void handle_pluss_minus(char* assembly_op, node_t* node, int n_parms) { */
+/*     node_to_assembly(node->children[1], n_parms); // arg2 */
+/*     printf("\tpushq %s\n", return_rec); // arg2 on stack */
+/*     node_to_assembly(node->children[0], n_parms); // arg1 */
+/*     printf("\t%s %s, (%%rsp)\n", assembly_op, return_rec); */
+/*     printf("\tpopq %s\n", return_rec); */
+/* } */
 
 // unary in terms of assembly operands (implicit parameter passing)
 void handle_mult_div(char* assembly_op, node_t* node, int n_parms) {
@@ -457,5 +463,25 @@ void handle_if_statement(node_t* node, int n_parms) {
 }
 
 void handle_while_statement(node_t* node, int n_parms) {
+    static int global_id = 0;
+    int id = global_id++; // needed as global id might change halfway thru this code
 
+    // evaluation point
+    printf("\t___%s.%i___:\n", "eval", id);
+    
+    // set return_rec to true or false by resolving boolean
+    node_to_assembly(node->children[0], n_parms);
+    printf("\tcmpq $1, %s\n", return_rec);
+
+    // crossroads 
+    printf("\tje ___%s.%i___\n", "while", id);
+    printf("\tjne ___%s.%i___\n", "end", id);
+
+    // translate true path and make label
+    printf("\t___%s.%i___:\n", "while", id);
+    node_to_assembly(node->children[1], n_parms);
+
+    // end marker w. loop
+    printf("\tjmp ___%s.%i___\n", "eval", id);
+    printf("\t___%s.%i___:\n", "end", id);
 }

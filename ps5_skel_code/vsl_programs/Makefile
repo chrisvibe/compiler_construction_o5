@@ -1,5 +1,5 @@
 # TARGETS=$(shell ls *.vsl | sed s/\.vsl//g)
-TARGETS=$(shell ls if_test.vsl | sed s/\.vsl//g)
+TARGETS=$(shell ls while_test.vsl | sed s/\.vsl//g)
 all: ${TARGETS}
 
 # Currently the binaries won't compile directly
